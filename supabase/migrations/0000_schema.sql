@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE TABLE IF NOT EXISTS public.customers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
-  phone TEXT UNIQUE,
+  phone TEXT UNIQUE NOT NULL,
   email TEXT,
   address TEXT,
   loyalty_points INTEGER DEFAULT 0,

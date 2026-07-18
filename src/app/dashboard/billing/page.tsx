@@ -18,6 +18,7 @@ export default function BillingPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [customerPhone, setCustomerPhone] = useState("")
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -119,12 +120,38 @@ export default function BillingPage() {
     if (cart.length === 0) return
 
     const invoiceNumber = `INV-${Date.now()}`
+    let customerId = null
+    
+    // Process Customer Phone if provided
+    if (customerPhone.trim() !== "") {
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('phone', customerPhone.trim())
+        .single()
+        
+      if (existingCustomer) {
+        customerId = existingCustomer.id
+      } else {
+        // Auto-create customer if they don't exist
+        const { data: newCustomer } = await supabase
+          .from('customers')
+          .insert([{ name: 'Walk-in Customer', phone: customerPhone.trim() }])
+          .select()
+          .single()
+          
+        if (newCustomer) {
+          customerId = newCustomer.id
+        }
+      }
+    }
     
     // 1. Create Invoice
     const { data: invoiceData, error: invoiceError } = await supabase
       .from('invoices')
       .insert([{
         invoice_number: invoiceNumber,
+        customer_id: customerId,
         subtotal: subtotal,
         total_gst: tax,
         grand_total: total,
@@ -179,6 +206,7 @@ export default function BillingPage() {
     
     // Clear Cart
     setCart([])
+    setCustomerPhone("")
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -299,7 +327,16 @@ export default function BillingPage() {
             <CardTitle>Order Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between">
+            <div className="space-y-2 pb-4 border-b">
+              <label className="text-sm font-medium">Customer Phone Number</label>
+              <Input 
+                placeholder="Enter phone number..." 
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Used for loyalty & digital receipts.</p>
+            </div>
+            <div className="flex justify-between pt-2">
               <span className="text-muted-foreground">Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
@@ -336,7 +373,8 @@ export default function BillingPage() {
             <div className="mt-4 border-b-2 border-black border-dashed"></div>
           </div>
           
-          <h2 className="text-xl font-semibold mb-4">Invoice / Receipt</h2>
+          <h2 className="text-xl font-semibold mb-2">Invoice / Receipt</h2>
+          {customerPhone && <p className="mb-2">Customer Phone: {customerPhone}</p>}
           <p className="mb-6">Date: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
           
           <table className="w-full mb-8 text-left">

@@ -64,7 +64,10 @@ export default function CustomersPage() {
   )
 
   const handleAddCustomer = async () => {
-    if (!newCustomer.name) return
+    if (!newCustomer.name || !newCustomer.phone) {
+      alert("Name and Phone Number are required!")
+      return
+    }
 
     const { error } = await supabase.from('customers').insert([{
       name: newCustomer.name,
@@ -114,6 +117,17 @@ export default function CustomersPage() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="phone" className="text-right">Phone *</Label>
+                <Input
+                  id="phone"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                  className="col-span-3"
+                  placeholder="555-0123"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="email" className="text-right">Email</Label>
                 <Input
                   id="email"
@@ -122,16 +136,6 @@ export default function CustomersPage() {
                   onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
                   className="col-span-3"
                   placeholder="john@example.com"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="phone" className="text-right">Phone</Label>
-                <Input
-                  id="phone"
-                  value={newCustomer.phone}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                  className="col-span-3"
-                  placeholder="555-0123"
                 />
               </div>
             </div>
