@@ -95,6 +95,44 @@ CREATE TABLE IF NOT EXISTS public.invoice_items (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- EXPENSES
+CREATE TABLE IF NOT EXISTS public.expenses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date TIMESTAMPTZ DEFAULT NOW(),
+  category TEXT NOT NULL,
+  amount DECIMAL(12, 2) NOT NULL,
+  description TEXT,
+  payment_method TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PURCHASE BILLS
+CREATE TABLE IF NOT EXISTS public.purchase_bills (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  supplier_id UUID REFERENCES public.suppliers(id),
+  invoice_number TEXT NOT NULL,
+  date TIMESTAMPTZ DEFAULT NOW(),
+  taxable_amount DECIMAL(12, 2) NOT NULL,
+  total_gst DECIMAL(12, 2) NOT NULL,
+  grand_total DECIMAL(12, 2) NOT NULL,
+  cash_paid DECIMAL(12, 2) DEFAULT 0.00,
+  balance_due DECIMAL(12, 2) DEFAULT 0.00,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PURCHASE ITEMS
+CREATE TABLE IF NOT EXISTS public.purchase_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  bill_id UUID REFERENCES public.purchase_bills(id) ON DELETE CASCADE,
+  item_name TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  rate DECIMAL(10, 2) NOT NULL,
+  gst_percentage DECIMAL(5, 2) DEFAULT 18.00,
+  gst_amount DECIMAL(10, 2) NOT NULL,
+  subtotal DECIMAL(12, 2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Set up Row Level Security (RLS) basics (optional depending on use case, disabled here for simpler setup unless needed)
 -- For a local POS system, RLS can often just require authentication.
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -103,6 +141,10 @@ ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_bills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated users to do everything (Simplified for this internal tool)
 CREATE POLICY "Allow authenticated users full access" ON public.users FOR ALL TO authenticated USING (true);
@@ -111,3 +153,7 @@ CREATE POLICY "Allow authenticated users full access" ON public.products FOR ALL
 CREATE POLICY "Allow authenticated users full access" ON public.product_variants FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow authenticated users full access" ON public.invoices FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow authenticated users full access" ON public.invoice_items FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow authenticated users full access" ON public.expenses FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow authenticated users full access" ON public.purchase_bills FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow authenticated users full access" ON public.purchase_items FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow authenticated users full access" ON public.suppliers FOR ALL TO authenticated USING (true);

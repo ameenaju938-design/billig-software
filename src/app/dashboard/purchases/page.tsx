@@ -1,15 +1,37 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Trash, Save, IndianRupee } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { mockSuppliers, mockPurchases, PurchaseBill, PurchaseItem } from "@/lib/mock-data"
+import { createClient } from "@/utils/supabase/client"
+
+export interface PurchaseItem {
+  id: string
+  name: string
+  quantity: number
+  rate: number
+  gstPercent: number
+}
+
+export interface PurchaseBill {
+  id: string
+  supplierId: string
+  invoiceNo: string
+  date: string
+  items: PurchaseItem[]
+  subtotal: number
+  totalGst: number
+  grandTotal: number
+  cashPaid: number
+}
 
 export default function PurchasesPage() {
-  const [purchases, setPurchases] = useState<PurchaseBill[]>(mockPurchases)
+  const supabase = createClient()
+  const [purchases, setPurchases] = useState<PurchaseBill[]>([])
+  const [suppliers, setSuppliers] = useState<{id: string, name: string}[]>([])
   const [supplierId, setSupplierId] = useState("")
   const [invoiceNo, setInvoiceNo] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -21,6 +43,30 @@ export default function PurchasesPage() {
   const [newItemQty, setNewItemQty] = useState<number>(1)
   const [newItemRate, setNewItemRate] = useState<number>(0)
   const [newItemGst, setNewItemGst] = useState<number>(18) // Default 18% GST
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    const { data: sups } = await supabase.from('suppliers').select('id, name')
+    if (sups) setSuppliers(sups)
+
+    const { data: bills } = await supabase.from('purchase_bills').select('*').order('date', { ascending: false })
+    if (bills) {
+      setPurchases(bills.map((b: any) => ({
+        id: b.id,
+        supplierId: b.supplier_id,
+        invoiceNo: b.invoice_number,
+        date: b.date ? new Date(b.date).toISOString().split('T')[0] : '',
+        subtotal: b.taxable_amount,
+        totalGst: b.total_gst,
+        grandTotal: b.grand_total,
+        cashPaid: b.cash_paid,
+        items: [] // In a real app we might fetch items here if needed for history
+      })))
+    }
+  }
 
   const handleAddItem = () => {
     if (!newItemName || newItemQty <= 0 || newItemRate < 0) return
@@ -48,25 +94,52 @@ export default function PurchasesPage() {
   const grandTotal = subtotal + totalGst
   const balanceDue = grandTotal - cashPaid
 
-  const handleSaveBill = () => {
+  const handleSaveBill = async () => {
     if (!supplierId || !invoiceNo || items.length === 0) {
       alert("Please select a supplier, enter an invoice number, and add at least one item.")
       return
     }
 
-    const newBill: PurchaseBill = {
-      id: `PB${Math.floor(Math.random() * 1000)}`,
-      invoiceNo,
-      supplierId,
-      date,
-      items,
-      subtotal,
-      totalGst,
-      grandTotal,
-      cashPaid,
+    // 1. Insert Bill
+    const { data: billData, error: billErr } = await supabase
+      .from('purchase_bills')
+      .insert([{
+        supplier_id: supplierId,
+        invoice_number: invoiceNo,
+        date: date,
+        taxable_amount: subtotal,
+        total_gst: totalGst,
+        grand_total: grandTotal,
+        cash_paid: cashPaid,
+        balance_due: balanceDue
+      }])
+      .select()
+      .single()
+
+    if (billErr || !billData) {
+      console.error("Error saving bill:", billErr)
+      alert("Failed to save bill.")
+      return
     }
 
-    setPurchases([newBill, ...purchases])
+    // 2. Insert Items
+    const itemsToInsert = items.map(item => ({
+      bill_id: billData.id,
+      item_name: item.name,
+      quantity: item.quantity,
+      rate: item.rate,
+      gst_percentage: item.gstPercent,
+      gst_amount: item.quantity * item.rate * (item.gstPercent / 100),
+      subtotal: item.quantity * item.rate
+    }))
+
+    const { error: itemsErr } = await supabase.from('purchase_items').insert(itemsToInsert)
+
+    if (itemsErr) {
+      console.error("Error saving items:", itemsErr)
+    }
+
+    fetchData()
     
     // Reset form
     setSupplierId("")
@@ -101,7 +174,7 @@ export default function PurchasesPage() {
                   className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="" disabled>Select Supplier</option>
-                  {mockSuppliers.map((s) => (
+                  {suppliers.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
@@ -300,7 +373,7 @@ export default function PurchasesPage() {
                 </thead>
                 <tbody className="divide-y">
                   {purchases.map((bill) => {
-                    const supplier = mockSuppliers.find(s => s.id === bill.supplierId)
+                    const supplier = suppliers.find(s => s.id === bill.supplierId)
                     const bal = bill.grandTotal - bill.cashPaid
                     return (
                       <tr key={bill.id} className="hover:bg-muted/50">

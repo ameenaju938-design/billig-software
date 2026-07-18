@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Search, MoreHorizontal, Edit, Trash, ReceiptText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,18 +12,46 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { mockExpenses, Expense } from "@/lib/mock-data"
+import { createClient } from "@/utils/supabase/client"
+
+export interface Expense {
+  id: string
+  date: string
+  category: string
+  description: string
+  amount: number
+}
 
 export default function ExpensesPage() {
-  const [expenses, setExpenses] = useState<Expense[]>(mockExpenses)
+  const supabase = createClient()
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({
     date: new Date().toISOString().split('T')[0], category: "", description: "", amount: 0
   })
+
+  useEffect(() => {
+    fetchExpenses()
+  }, [])
+
+  const fetchExpenses = async () => {
+    const { data, error } = await supabase.from('expenses').select('*').order('date', { ascending: false })
+    if (error) {
+      console.error('Error fetching expenses:', error)
+    } else if (data) {
+      const formatted = data.map((e: any) => ({
+        id: e.id,
+        date: e.date ? new Date(e.date).toISOString().split('T')[0] : '',
+        category: e.category,
+        description: e.description || '',
+        amount: e.amount
+      }))
+      setExpenses(formatted)
+    }
+  }
 
   const filteredExpenses = expenses.filter(
     (e) =>
@@ -31,22 +59,31 @@ export default function ExpensesPage() {
       e.category.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!newExpense.description || !newExpense.amount) return
-    const expenseToAdd: Expense = {
-      id: `E${Math.floor(Math.random() * 1000)}`,
+    
+    const { error } = await supabase.from('expenses').insert([{
       date: newExpense.date || new Date().toISOString().split('T')[0],
       category: newExpense.category || "General",
       description: newExpense.description,
       amount: Number(newExpense.amount),
+      payment_method: 'Cash'
+    }])
+
+    if (error) {
+      console.error("Error adding expense:", error)
+    } else {
+      fetchExpenses()
+      setIsDialogOpen(false)
+      setNewExpense({ date: new Date().toISOString().split('T')[0], category: "", description: "", amount: 0 })
     }
-    setExpenses([expenseToAdd, ...expenses])
-    setIsDialogOpen(false)
-    setNewExpense({ date: new Date().toISOString().split('T')[0], category: "", description: "", amount: 0 })
   }
 
-  const handleDelete = (id: string) => {
-    setExpenses(expenses.filter((e) => e.id !== id))
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    if (!error) {
+      setExpenses(expenses.filter((e) => e.id !== id))
+    }
   }
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)

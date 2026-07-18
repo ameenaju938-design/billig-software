@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Search, MoreHorizontal, Edit, Trash, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,18 +12,50 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { mockSuppliers, Supplier } from "@/lib/mock-data"
+import { createClient } from "@/utils/supabase/client"
+
+export interface Supplier {
+  id: string
+  name: string
+  contactPerson: string
+  phone: string
+  email: string
+  category: string
+  status: string
+}
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers)
+  const supabase = createClient()
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>({
     name: "", contactPerson: "", phone: "", email: "", category: "", status: "Active"
   })
+
+  useEffect(() => {
+    fetchSuppliers()
+  }, [])
+
+  const fetchSuppliers = async () => {
+    const { data, error } = await supabase.from('suppliers').select('*')
+    if (error) {
+      console.error('Error fetching suppliers:', error)
+    } else if (data) {
+      const formatted = data.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        contactPerson: s.contact_person || '',
+        phone: s.phone || '',
+        email: s.email || '',
+        category: "General",
+        status: "Active"
+      }))
+      setSuppliers(formatted)
+    }
+  }
 
   const filteredSuppliers = suppliers.filter(
     (s) =>
@@ -31,24 +63,30 @@ export default function SuppliersPage() {
       s.contactPerson.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleAddSupplier = () => {
+  const handleAddSupplier = async () => {
     if (!newSupplier.name || !newSupplier.email) return
-    const supplierToAdd: Supplier = {
-      id: `S${Math.floor(Math.random() * 1000)}`,
+    
+    const { error } = await supabase.from('suppliers').insert([{
       name: newSupplier.name,
-      contactPerson: newSupplier.contactPerson || "",
-      phone: newSupplier.phone || "",
-      email: newSupplier.email,
-      category: newSupplier.category || "General",
-      status: (newSupplier.status as "Active" | "Inactive") || "Active",
+      contact_person: newSupplier.contactPerson,
+      phone: newSupplier.phone,
+      email: newSupplier.email
+    }])
+
+    if (error) {
+      console.error("Error adding supplier:", error)
+    } else {
+      fetchSuppliers()
+      setIsDialogOpen(false)
+      setNewSupplier({ name: "", contactPerson: "", phone: "", email: "", category: "", status: "Active" })
     }
-    setSuppliers([supplierToAdd, ...suppliers])
-    setIsDialogOpen(false)
-    setNewSupplier({ name: "", contactPerson: "", phone: "", email: "", category: "", status: "Active" })
   }
 
-  const handleDelete = (id: string) => {
-    setSuppliers(suppliers.filter((s) => s.id !== id))
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('suppliers').delete().eq('id', id)
+    if (!error) {
+      setSuppliers(suppliers.filter((s) => s.id !== id))
+    }
   }
 
   return (

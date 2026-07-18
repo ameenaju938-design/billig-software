@@ -1,13 +1,18 @@
+"use client"
+
 import { Sidebar } from "@/components/sidebar"
-import { Bell, Search, User } from "lucide-react"
+import { Bell, Search, User, ShieldAlert } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { useRole, Role } from "@/lib/role-context"
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const { role, setRole } = useRole()
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40 md:flex-row">
       <div className="hidden md:block">
@@ -30,7 +35,18 @@ export default function DashboardLayout({
               <Bell className="h-4 w-4" />
               <span className="sr-only">Toggle notifications</span>
             </Button>
-            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8">
+            <div className="flex items-center gap-2 border-l pl-4 ml-2">
+              <ShieldAlert className="h-4 w-4 text-primary" />
+              <select 
+                className="text-sm border-none bg-transparent font-medium cursor-pointer focus:outline-none"
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+              >
+                <option value="Admin">Admin Mode</option>
+                <option value="Staff">Staff Mode</option>
+              </select>
+            </div>
+            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 ml-2">
               <User className="h-4 w-4" />
               <span className="sr-only">Toggle user menu</span>
             </Button>

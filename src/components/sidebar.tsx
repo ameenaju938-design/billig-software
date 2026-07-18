@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { useRole } from "@/lib/role-context"
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -14,6 +17,8 @@ import {
 } from "lucide-react"
 
 export function Sidebar() {
+  const { role } = useRole()
+  
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-muted/40">
       <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
@@ -52,45 +57,52 @@ export function Sidebar() {
             <Users className="h-4 w-4" />
             Customers
           </Link>
-          <Link
-            href="/dashboard/reports"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-          >
-            <FileText className="h-4 w-4" />
-            Reports
-          </Link>
-          <Link
-            href="/dashboard/suppliers"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-          >
-            <Truck className="h-4 w-4" />
-            Suppliers
-          </Link>
-          <Link
-            href="/dashboard/purchases"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-          >
-            <PackagePlus className="h-4 w-4" />
-            Purchases (Inward)
-          </Link>
-          <Link
-            href="/dashboard/expenses"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-          >
-            <CreditCard className="h-4 w-4" />
-            Expenses
-          </Link>
+          
+          {role === "Admin" && (
+            <>
+              <Link
+                href="/dashboard/reports"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <FileText className="h-4 w-4" />
+                Reports
+              </Link>
+              <Link
+                href="/dashboard/suppliers"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <Truck className="h-4 w-4" />
+                Suppliers
+              </Link>
+              <Link
+                href="/dashboard/purchases"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <PackagePlus className="h-4 w-4" />
+                Purchases (Inward)
+              </Link>
+              <Link
+                href="/dashboard/expenses"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <CreditCard className="h-4 w-4" />
+                Expenses
+              </Link>
+            </>
+          )}
         </nav>
       </div>
       <div className="mt-auto p-4">
         <nav className="grid items-start text-sm font-medium">
-          <Link
-            href="/dashboard/settings"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
+          {role === "Admin" && (
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          )}
           <Link
             href="/login"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Search, Mail, Phone, MoreVertical, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,18 +12,50 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { mockCustomers, Customer } from "@/lib/mock-data"
+import { createClient } from "@/utils/supabase/client"
+
+export interface Customer {
+  id: string
+  name: string
+  email: string
+  phone: string
+  totalSpent: number
+  lastVisit: string
+  status: string
+}
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers)
+  const supabase = createClient()
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({
     name: "", email: "", phone: "", status: "Active"
   })
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  const fetchCustomers = async () => {
+    const { data, error } = await supabase.from('customers').select('*')
+    if (error) {
+      console.error('Error fetching customers:', error)
+    } else if (data) {
+      const formatted = data.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || '',
+        phone: c.phone || '',
+        totalSpent: c.loyalty_points || 0, // Mocking totalSpent with loyalty_points for now
+        lastVisit: c.updated_at ? new Date(c.updated_at).toISOString().split('T')[0] : 'N/A',
+        status: "Active"
+      }))
+      setCustomers(formatted)
+    }
+  }
 
   const filteredCustomers = customers.filter(
     (c) =>
@@ -31,20 +63,23 @@ export default function CustomersPage() {
       c.email.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleAddCustomer = () => {
-    if (!newCustomer.name || !newCustomer.email) return
-    const customerToAdd: Customer = {
-      id: `C${Math.floor(Math.random() * 1000)}`,
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name) return
+
+    const { error } = await supabase.from('customers').insert([{
       name: newCustomer.name,
       email: newCustomer.email,
-      phone: newCustomer.phone || "",
-      totalSpent: 0,
-      lastVisit: new Date().toISOString().split('T')[0],
-      status: (newCustomer.status as "Active" | "Inactive") || "Active",
+      phone: newCustomer.phone,
+      loyalty_points: 0
+    }])
+
+    if (error) {
+      console.error("Error adding customer:", error)
+    } else {
+      fetchCustomers()
+      setIsDialogOpen(false)
+      setNewCustomer({ name: "", email: "", phone: "", status: "Active" })
     }
-    setCustomers([customerToAdd, ...customers])
-    setIsDialogOpen(false)
-    setNewCustomer({ name: "", email: "", phone: "", status: "Active" })
   }
 
   return (

@@ -5,17 +5,48 @@ import { Search, Printer, Trash2, Plus, Minus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { mockProducts, Product } from "@/lib/mock-data"
+import { createClient } from "@/utils/supabase/client"
+import { Product } from "@/app/dashboard/inventory/page"
 
 interface CartItem extends Product {
   quantity: number;
 }
 
 export default function BillingPage() {
+  const supabase = createClient()
+  const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select(`
+        id, name, category,
+        product_variants ( id, barcode, selling_price, stock_qty )
+      `)
+
+    if (data) {
+      const formatted: Product[] = data.map((p: any) => {
+        const variant = p.product_variants?.[0] || {}
+        return {
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          barcode: variant.barcode || '',
+          price: variant.selling_price || 0,
+          stock: variant.stock_qty || 0
+        }
+      })
+      setProducts(formatted)
+    }
+  }
 
   // Focus the search/scan input on load for immediate scanning
   useEffect(() => {
@@ -32,13 +63,13 @@ export default function BillingPage() {
     }
 
     const lowerQuery = searchQuery.toLowerCase()
-    const results = mockProducts.filter(
+    const results = products.filter(
       (p) =>
         p.name.toLowerCase().includes(lowerQuery) ||
         p.barcode.toLowerCase().includes(lowerQuery)
     )
     setSearchResults(results)
-  }, [searchQuery])
+  }, [searchQuery, products])
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
@@ -75,7 +106,7 @@ export default function BillingPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Barcode scanners typically send an 'Enter' key after the barcode
     if (e.key === "Enter" && searchQuery) {
-      const product = mockProducts.find(
+      const product = products.find(
         (p) => p.barcode.toLowerCase() === searchQuery.toLowerCase()
       )
       if (product) {
