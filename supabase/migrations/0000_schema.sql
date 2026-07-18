@@ -147,13 +147,23 @@ ALTER TABLE public.purchase_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated users to do everything (Simplified for this internal tool)
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.users;
 CREATE POLICY "Allow authenticated users full access" ON public.users FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.customers;
 CREATE POLICY "Allow authenticated users full access" ON public.customers FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.products;
 CREATE POLICY "Allow authenticated users full access" ON public.products FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.product_variants;
 CREATE POLICY "Allow authenticated users full access" ON public.product_variants FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.invoices;
 CREATE POLICY "Allow authenticated users full access" ON public.invoices FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.invoice_items;
 CREATE POLICY "Allow authenticated users full access" ON public.invoice_items FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.expenses;
 CREATE POLICY "Allow authenticated users full access" ON public.expenses FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.purchase_bills;
 CREATE POLICY "Allow authenticated users full access" ON public.purchase_bills FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.purchase_items;
 CREATE POLICY "Allow authenticated users full access" ON public.purchase_items FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.suppliers;
 CREATE POLICY "Allow authenticated users full access" ON public.suppliers FOR ALL TO authenticated USING (true);
