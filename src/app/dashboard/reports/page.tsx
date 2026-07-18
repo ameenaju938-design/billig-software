@@ -1,8 +1,9 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { mockSalesData, mockCategoryData } from "@/lib/mock-data"
 import { DollarSign, ShoppingBag, TrendingUp, Users } from "lucide-react"
+import { createClient } from "@/utils/supabase/client"
 import {
   LineChart,
   Line,
@@ -22,9 +23,53 @@ import {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 export default function ReportsPage() {
-  const totalRevenue = mockSalesData.reduce((sum, data) => sum + data.revenue, 0)
-  const totalOrders = mockSalesData.reduce((sum, data) => sum + data.orders, 0)
-  const averageOrderValue = totalRevenue / totalOrders
+  const supabase = createClient()
+  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [totalOrders, setTotalOrders] = useState(0)
+  const [activeUsers, setActiveUsers] = useState(0)
+  
+  // We keep mock chart data for visual purposes unless we implement full grouping aggregations
+  const [salesData, setSalesData] = useState<any[]>([])
+
+  useEffect(() => {
+    fetchReportsData()
+  }, [])
+
+  const fetchReportsData = async () => {
+    // 1. Total Revenue & Orders
+    const { data: invoices } = await supabase.from('invoices').select('grand_total, created_at')
+    
+    if (invoices) {
+      setTotalOrders(invoices.length)
+      const revenue = invoices.reduce((sum, inv) => sum + Number(inv.grand_total), 0)
+      setTotalRevenue(revenue)
+
+      // Very basic grouping by date for the chart
+      const grouped: Record<string, { revenue: number, orders: number }> = {}
+      invoices.forEach(inv => {
+        const date = new Date(inv.created_at).toISOString().split('T')[0]
+        if (!grouped[date]) grouped[date] = { revenue: 0, orders: 0 }
+        grouped[date].revenue += Number(inv.grand_total)
+        grouped[date].orders += 1
+      })
+
+      const chartData = Object.keys(grouped).sort().slice(-7).map(date => ({
+        date,
+        revenue: grouped[date].revenue,
+        orders: grouped[date].orders
+      }))
+      
+      setSalesData(chartData.length > 0 ? chartData : [
+        { date: "No Data", revenue: 0, orders: 0 }
+      ])
+    }
+
+    // 2. Customers
+    const { count: customerCount } = await supabase.from('customers').select('*', { count: 'exact', head: true })
+    setActiveUsers(customerCount || 0)
+  }
+
+  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,8 +95,8 @@ export default function ReportsPage() {
             <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{totalOrders}</div>
-            <p className="text-xs text-muted-foreground mt-1">+180.1% from last month</p>
+            <div className="text-2xl font-bold">{totalOrders}</div>
+            <p className="text-xs text-muted-foreground mt-1">Live from database</p>
           </CardContent>
         </Card>
         <Card>
@@ -70,8 +115,8 @@ export default function ReportsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+573</div>
-            <p className="text-xs text-muted-foreground mt-1">+201 since last week</p>
+            <div className="text-2xl font-bold">{activeUsers}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total registered customers</p>
           </CardContent>
         </Card>
       </div>
@@ -84,7 +129,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={mockSalesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <LineChart data={salesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tickMargin={10} />
                 <YAxis axisLine={false} tickLine={false} tickMargin={10} tickFormatter={(value) => `$${value}`} />
@@ -112,7 +157,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockSalesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <BarChart data={salesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tickMargin={10} />
                 <YAxis axisLine={false} tickLine={false} tickMargin={10} />
@@ -135,7 +180,7 @@ export default function ReportsPage() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={mockCategoryData}
+                  data={[{name: 'General', value: totalRevenue}]}
                   cx="50%"
                   cy="50%"
                   innerRadius={80}
@@ -143,9 +188,7 @@ export default function ReportsPage() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {mockCategoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
+                  <Cell key={`cell-0`} fill={COLORS[0]} />
                 </Pie>
                 <Tooltip />
                 <Legend verticalAlign="bottom" height={36} />

@@ -1,8 +1,10 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { IndianRupee, PackageOpen, TrendingUp, AlertTriangle } from "lucide-react"
+import { createClient } from "@/utils/supabase/client"
 
 const dailySalesData = [
   { date: "1st", sales: 45000 },
@@ -36,6 +38,65 @@ const lowStockAlerts = [
 ]
 
 export default function DashboardPage() {
+  const supabase = createClient()
+  const [todaySales, setTodaySales] = useState(0)
+  const [monthlySales, setMonthlySales] = useState(0)
+  const [totalProducts, setTotalProducts] = useState(0)
+  const [lowStockCount, setLowStockCount] = useState(0)
+  const [liveLowStockAlerts, setLiveLowStockAlerts] = useState<any[]>([])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    // 1. Total Products
+    const { count: productCount } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+    setTotalProducts(productCount || 0)
+
+    // 2. Low Stock Alerts (threshold < 5 for demo)
+    const { data: variants } = await supabase
+      .from('product_variants')
+      .select('id, size, color, stock_qty, products(name)')
+      .lt('stock_qty', 5)
+    
+    if (variants) {
+      setLowStockCount(variants.length)
+      setLiveLowStockAlerts(variants.map(v => ({
+        id: v.id,
+        name: `${(v.products as any)?.name || 'Unknown'} - ${v.size} / ${v.color}`,
+        stock: v.stock_qty,
+        threshold: 5
+      })))
+    }
+
+    // 3. Sales (Today & Month) - basic sum
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    
+    const { data: invoices } = await supabase
+      .from('invoices')
+      .select('grand_total, created_at')
+      .gte('created_at', firstDayOfMonth.toISOString())
+      
+    if (invoices) {
+      let tSales = 0
+      let mSales = 0
+      invoices.forEach(inv => {
+        mSales += Number(inv.grand_total)
+        if (new Date(inv.created_at) >= today) {
+          tSales += Number(inv.grand_total)
+        }
+      })
+      setTodaySales(tSales)
+      setMonthlySales(mSales)
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-4 md:gap-8">
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
@@ -45,8 +106,8 @@ export default function DashboardPage() {
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹85,231.00</div>
-            <p className="text-xs text-muted-foreground">+20.1% from yesterday</p>
+            <div className="text-2xl font-bold">₹{todaySales.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Calculated from live invoices</p>
           </CardContent>
         </Card>
         <Card x-chunk="dashboard-01-chunk-1">
@@ -55,8 +116,8 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹21,05,430.00</div>
-            <p className="text-xs text-muted-foreground">+15% from last month</p>
+            <div className="text-2xl font-bold">₹{monthlySales.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Calculated from live invoices</p>
           </CardContent>
         </Card>
         <Card x-chunk="dashboard-01-chunk-2">
@@ -65,8 +126,8 @@ export default function DashboardPage() {
             <PackageOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,245</div>
-            <p className="text-xs text-muted-foreground">across 4 categories</p>
+            <div className="text-2xl font-bold">{totalProducts}</div>
+            <p className="text-xs text-muted-foreground">Active in inventory</p>
           </CardContent>
         </Card>
         <Card x-chunk="dashboard-01-chunk-3">
@@ -75,7 +136,7 @@ export default function DashboardPage() {
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">12 Items</div>
+            <div className="text-2xl font-bold text-destructive">{lowStockCount} Items</div>
             <p className="text-xs text-muted-foreground">require immediate reorder</p>
           </CardContent>
         </Card>
@@ -106,7 +167,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {lowStockAlerts.map(alert => (
+              {liveLowStockAlerts.length > 0 ? liveLowStockAlerts.map(alert => (
                 <div key={alert.id} className="flex items-center">
                   <div className="ml-4 space-y-1">
                     <p className="text-sm font-medium leading-none">{alert.name}</p>
@@ -115,7 +176,9 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="text-sm text-muted-foreground p-4">All stock levels look good!</div>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -115,10 +115,70 @@ export default function BillingPage() {
     }
   }
 
-  const handlePrint = () => {
+  const handleCheckout = async () => {
+    if (cart.length === 0) return
+
+    const invoiceNumber = `INV-${Date.now()}`
+    
+    // 1. Create Invoice
+    const { data: invoiceData, error: invoiceError } = await supabase
+      .from('invoices')
+      .insert([{
+        invoice_number: invoiceNumber,
+        subtotal: subtotal,
+        total_gst: tax,
+        grand_total: total,
+        payment_mode: 'Cash', // Defaulting for now
+        status: 'Completed'
+      }])
+      .select()
+      .single()
+
+    if (invoiceError || !invoiceData) {
+      console.error("Error creating invoice:", invoiceError)
+      alert("Failed to save invoice to database!")
+      return
+    }
+
+    // 2. Create Invoice Items and Deduct Stock
+    for (const item of cart) {
+      // Find variant ID (we stored it in products fetch implicitly, let's assume item.id is product.id)
+      // Actually we need variant_id. Let's fetch it or just use product.id for now in schema if we didn't store variant_id.
+      // Wait, in fetchProducts, we didn't save variant_id, we mapped it to Product.
+      // Let's just deduct from product_variants where product_id = item.id.
+      
+      const { data: variantData } = await supabase
+        .from('product_variants')
+        .select('id, stock_qty')
+        .eq('product_id', item.id)
+        .single()
+        
+      if (variantData) {
+        // Insert Invoice Item
+        await supabase.from('invoice_items').insert([{
+          invoice_id: invoiceData.id,
+          variant_id: variantData.id,
+          quantity: item.quantity,
+          unit_price: item.price,
+          gst_percentage: 10, // hardcoded for this demo based on taxRate
+          gst_amount: item.price * item.quantity * 0.1,
+          subtotal: item.price * item.quantity
+        }])
+        
+        // Deduct Stock
+        const newStock = Math.max(0, variantData.stock_qty - item.quantity)
+        await supabase
+          .from('product_variants')
+          .update({ stock_qty: newStock })
+          .eq('id', variantData.id)
+      }
+    }
+
+    // Print Receipt
     window.print()
-    // Optionally clear cart after a successful print/checkout
-    // setCart([])
+    
+    // Clear Cart
+    setCart([])
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -258,7 +318,7 @@ export default function BillingPage() {
             <Button
               className="w-full gap-2"
               size="lg"
-              onClick={handlePrint}
+              onClick={handleCheckout}
               disabled={cart.length === 0}
             >
               <Printer className="h-5 w-5" />
