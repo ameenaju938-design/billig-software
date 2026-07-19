@@ -155,8 +155,8 @@ export default function BillingPage() {
         subtotal: subtotal,
         total_gst: tax,
         grand_total: total,
-        payment_mode: 'Cash', // Defaulting for now
-        status: 'Completed'
+        payment_method: 'Cash', // Defaulting for now
+        payment_status: 'Paid'
       }])
       .select()
       .single()
