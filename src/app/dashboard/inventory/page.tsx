@@ -12,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-import { DialogFooter } from "@/components/ui/dialog"
+  DialogFooter
+} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/utils/supabase/client"
 import { useRole } from "@/lib/role-context"
@@ -128,10 +129,8 @@ export default function InventoryPage() {
         </div>
         {role === "Admin" && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" /> Add Product
-              </Button>
+            <DialogTrigger render={<Button className="gap-2" />}>
+              <Plus className="h-4 w-4" /> Add Product
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>

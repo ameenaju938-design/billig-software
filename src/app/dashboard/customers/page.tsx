@@ -12,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-import { DialogFooter } from "@/components/ui/dialog"
+  DialogFooter
+} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/utils/supabase/client"
 
@@ -93,10 +94,8 @@ export default function CustomersPage() {
           <p className="text-muted-foreground">Manage your customer relationships and purchase history.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" /> Add Customer
-            </Button>
+          <DialogTrigger render={<Button className="gap-2" />}>
+            <Plus className="h-4 w-4" /> Add Customer
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
