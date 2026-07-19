@@ -85,7 +85,7 @@ export function LoginForm({ className, ...props }: UserAuthFormProps) {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="role">Terminal Role</Label>
-            <Select value={role} onValueChange={setRole} disabled={isLoading}>
+            <Select value={role} onValueChange={(val) => setRole(val || "cashier")} disabled={isLoading}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
