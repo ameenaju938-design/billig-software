@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Search, Printer, Trash2, Plus, Minus } from "lucide-react"
+import { Search, Printer, Trash2, Plus, Minus, History, Edit, FileText } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { createClient } from "@/utils/supabase/client"
 import { Product } from "@/app/dashboard/inventory/page"
 
@@ -20,6 +21,63 @@ export default function BillingPage() {
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [customerPhone, setCustomerPhone] = useState("")
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
+  const [dailySerial, setDailySerial] = useState<string | null>(null)
+  const [invoiceHistory, setInvoiceHistory] = useState<any[]>([])
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+
+  const fetchInvoiceHistory = async () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const { data } = await supabase
+      .from('invoices')
+      .select('*, customers(phone, name)')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false })
+      
+    if (data) setInvoiceHistory(data)
+  }
+
+  const loadInvoiceForEdit = async (invoice: any) => {
+    setEditingInvoiceId(invoice.id)
+    setCustomerPhone(invoice.customers?.phone || "")
+    setDailySerial(invoice.invoice_number.split('-').pop() || "")
+    
+    const { data: items } = await supabase
+      .from('invoice_items')
+      .select(`
+        quantity, unit_price,
+        product_variants ( id, product_id, barcode, products (name, category) )
+      `)
+      .eq('invoice_id', invoice.id)
+      
+    if (items) {
+      const loadedCart: CartItem[] = items.map((item: any) => {
+        const pv = item.product_variants
+        return {
+          id: pv.product_id,
+          name: pv.products?.name,
+          category: pv.products?.category,
+          barcode: pv.barcode,
+          price: Number(item.unit_price),
+          stock: 999, // Bypass stock check for edits temporarily
+          quantity: item.quantity,
+          variant_id: pv.id
+        }
+      })
+      setCart(loadedCart)
+      setIsHistoryOpen(false)
+    }
+  }
+
+  const loadInvoiceForPrint = async (invoice: any) => {
+    await loadInvoiceForEdit(invoice)
+    setTimeout(() => {
+      window.print()
+    }, 500)
+  }
 
   useEffect(() => {
     fetchProducts()
@@ -42,7 +100,8 @@ export default function BillingPage() {
           category: p.category,
           barcode: variant.barcode || '',
           price: variant.selling_price || 0,
-          stock: variant.stock_qty || 0
+          stock: variant.stock_qty || 0,
+          variant_id: variant.id
         }
       })
       setProducts(formatted)
@@ -119,94 +178,116 @@ export default function BillingPage() {
   const handleCheckout = async () => {
     if (cart.length === 0) return
 
-    const invoiceNumber = `INV-${Date.now()}`
+    let currentInvoiceId = editingInvoiceId
+    let generatedSerialNumber = dailySerial
+
     let customerId = null
-    
-    // Process Customer Phone if provided
     if (customerPhone.trim() !== "") {
       const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('phone', customerPhone.trim())
-        .single()
-        
+        .from('customers').select('id').eq('phone', customerPhone.trim()).single()
       if (existingCustomer) {
         customerId = existingCustomer.id
       } else {
-        // Auto-create customer if they don't exist
         const { data: newCustomer } = await supabase
-          .from('customers')
-          .insert([{ name: 'Walk-in Customer', phone: customerPhone.trim() }])
-          .select()
-          .single()
-          
-        if (newCustomer) {
-          customerId = newCustomer.id
-        }
+          .from('customers').insert([{ name: 'Walk-in Customer', phone: customerPhone.trim() }]).select().single()
+        if (newCustomer) customerId = newCustomer.id
       }
     }
-    
-    // 1. Create Invoice
-    const { data: invoiceData, error: invoiceError } = await supabase
-      .from('invoices')
-      .insert([{
-        invoice_number: invoiceNumber,
+
+    if (currentInvoiceId) {
+      // Restore stock for old items before deleting
+      const { data: oldItems } = await supabase
+        .from('invoice_items').select('variant_id, quantity').eq('invoice_id', currentInvoiceId)
+      
+      if (oldItems) {
+        for (const oi of oldItems) {
+          const { data: vData } = await supabase.from('product_variants').select('stock_qty').eq('id', oi.variant_id).single()
+          if (vData) {
+            await supabase.from('product_variants').update({ stock_qty: vData.stock_qty + oi.quantity }).eq('id', oi.variant_id)
+          }
+        }
+      }
+      
+      await supabase.from('invoice_items').delete().eq('invoice_id', currentInvoiceId)
+      
+      await supabase.from('invoices').update({
         customer_id: customerId,
         subtotal: subtotal,
         total_gst: tax,
-        grand_total: total,
-        payment_method: 'Cash', // Defaulting for now
-        payment_status: 'Paid'
-      }])
-      .select()
-      .single()
+        grand_total: total
+      }).eq('id', currentInvoiceId)
 
-    if (invoiceError || !invoiceData) {
-      console.error("Error creating invoice:", invoiceError)
-      alert("Failed to save invoice to database!")
-      return
+    } else {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const { count } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString())
+      const serialNum = (count || 0) + 1
+      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
+      generatedSerialNumber = serialNum.toString().padStart(3, '0')
+      const invoiceNumber = `INV-${dateStr}-${generatedSerialNumber}`
+      
+      const { data: invoiceData, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert([{
+          invoice_number: invoiceNumber,
+          customer_id: customerId,
+          subtotal: subtotal,
+          total_gst: tax,
+          grand_total: total,
+          payment_method: 'Cash',
+          payment_status: 'Paid'
+        }])
+        .select().single()
+
+      if (invoiceError || !invoiceData) {
+        alert("Failed to save invoice!")
+        return
+      }
+      currentInvoiceId = invoiceData.id
+      setDailySerial(generatedSerialNumber)
     }
 
-    // 2. Create Invoice Items and Deduct Stock
+    // Insert new items and deduct stock
     for (const item of cart) {
-      // Find variant ID (we stored it in products fetch implicitly, let's assume item.id is product.id)
-      // Actually we need variant_id. Let's fetch it or just use product.id for now in schema if we didn't store variant_id.
-      // Wait, in fetchProducts, we didn't save variant_id, we mapped it to Product.
-      // Let's just deduct from product_variants where product_id = item.id.
+      let finalVariantId = item.variant_id;
       
-      const { data: variantData } = await supabase
-        .from('product_variants')
-        .select('id, stock_qty')
-        .eq('product_id', item.id)
-        .single()
-        
-      if (variantData) {
-        // Insert Invoice Item
-        await supabase.from('invoice_items').insert([{
-          invoice_id: invoiceData.id,
-          variant_id: variantData.id,
+      // Fallback if variant_id was not loaded (e.g., page wasn't refreshed)
+      if (!finalVariantId) {
+        const { data: variantData } = await supabase.from('product_variants').select('id').eq('product_id', item.id).limit(1);
+        if (variantData && variantData.length > 0) {
+          finalVariantId = variantData[0].id;
+        }
+      }
+
+      if (finalVariantId) {
+        const { error: insertError } = await supabase.from('invoice_items').insert([{
+          invoice_id: currentInvoiceId,
+          variant_id: finalVariantId,
           quantity: item.quantity,
           unit_price: item.price,
-          gst_percentage: 10, // hardcoded for this demo based on taxRate
           gst_amount: item.price * item.quantity * 0.1,
           subtotal: item.price * item.quantity
         }])
         
-        // Deduct Stock
-        const newStock = Math.max(0, variantData.stock_qty - item.quantity)
-        await supabase
-          .from('product_variants')
-          .update({ stock_qty: newStock })
-          .eq('id', variantData.id)
+        if (insertError) {
+          console.error("Error inserting invoice item:", insertError)
+          alert("Error inserting invoice item: " + insertError.message)
+        }
+        
+        // deduct stock
+        const { data: variantData } = await supabase.from('product_variants').select('stock_qty').eq('id', finalVariantId).single()
+        if (variantData) {
+          const newStock = Math.max(0, variantData.stock_qty - item.quantity)
+          await supabase.from('product_variants').update({ stock_qty: newStock }).eq('id', finalVariantId)
+        }
       }
     }
 
-    // Print Receipt
     window.print()
-    
-    // Clear Cart
     setCart([])
     setCustomerPhone("")
+    setEditingInvoiceId(null)
+    setDailySerial(null)
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -220,7 +301,61 @@ export default function BillingPage() {
       <div className="flex-1 space-y-6 print:hidden">
         <Card>
           <CardHeader>
-            <CardTitle>Point of Sale</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>{editingInvoiceId ? "Edit Invoice" : "Point of Sale"}</CardTitle>
+              <div className="flex gap-2">
+                {editingInvoiceId && (
+                  <Button variant="outline" size="sm" onClick={() => { setCart([]); setEditingInvoiceId(null); setDailySerial(null); setCustomerPhone(""); }}>
+                    Cancel Edit
+                  </Button>
+                )}
+                <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                  <DialogTrigger render={<Button variant="outline" size="sm" onClick={fetchInvoiceHistory} />}>
+                    <History className="h-4 w-4 mr-2" /> Previous Bills
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>Today's Invoices</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                      {invoiceHistory.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">No invoices found for today.</p>
+                      ) : (
+                        <table className="w-full text-sm text-left">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="py-2">Time</th>
+                              <th className="py-2">Invoice #</th>
+                              <th className="py-2">Customer</th>
+                              <th className="py-2 text-right">Total</th>
+                              <th className="py-2 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {invoiceHistory.map((inv) => (
+                              <tr key={inv.id} className="border-b">
+                                <td className="py-2">{new Date(inv.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                                <td className="py-2">{inv.invoice_number}</td>
+                                <td className="py-2">{inv.customers?.phone || 'Walk-in'}</td>
+                                <td className="py-2 text-right">${Number(inv.grand_total).toFixed(2)}</td>
+                                <td className="py-2 text-right">
+                                  <Button variant="ghost" size="sm" onClick={() => loadInvoiceForPrint(inv)}>
+                                    <Printer className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => loadInvoiceForEdit(inv)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="relative">
@@ -359,7 +494,7 @@ export default function BillingPage() {
               disabled={cart.length === 0}
             >
               <Printer className="h-5 w-5" />
-              Complete & Print
+              {editingInvoiceId ? "Update & Print" : "Complete & Print"}
             </Button>
           </CardFooter>
         </Card>
@@ -374,8 +509,9 @@ export default function BillingPage() {
           </div>
           
           <h2 className="text-xl font-semibold mb-2">Invoice / Receipt</h2>
+          {dailySerial && <p className="mb-2 text-2xl font-bold">Token / Serial: {dailySerial}</p>}
           {customerPhone && <p className="mb-2">Customer Phone: {customerPhone}</p>}
-          <p className="mb-6">Date: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+          <p className="mb-6" suppressHydrationWarning>Date: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
           
           <table className="w-full mb-8 text-left">
             <thead>

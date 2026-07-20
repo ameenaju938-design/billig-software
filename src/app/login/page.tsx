@@ -1,5 +1,4 @@
 import { Metadata } from "next"
-import Image from "next"
 import Link from "next/link"
 import { LoginForm } from "@/components/login-form"
 

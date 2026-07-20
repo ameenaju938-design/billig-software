@@ -23,9 +23,12 @@ export interface Product {
   id: string
   name: string
   barcode: string
-  price: number
-  stock: number
   category: string
+  price: number // Maps to selling_price
+  buying_price: number
+  wholesale_price: number
+  stock: number
+  variant_id?: string
 }
 
 export default function InventoryPage() {
@@ -34,8 +37,9 @@ export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    name: "", barcode: "", price: 0, stock: 0, category: "Apparel"
+    name: "", barcode: "", price: 0, buying_price: 0, wholesale_price: 0, stock: 0, category: "Apparel"
   })
 
   useEffect(() => {
@@ -48,7 +52,7 @@ export default function InventoryPage() {
       .from('products')
       .select(`
         id, name, category,
-        product_variants ( id, barcode, selling_price, stock_qty )
+        product_variants ( id, barcode, selling_price, buying_price, wholesale_price, stock_qty )
       `)
 
     if (error) {
@@ -62,7 +66,10 @@ export default function InventoryPage() {
           category: p.category,
           barcode: variant.barcode || '',
           price: variant.selling_price || 0,
-          stock: variant.stock_qty || 0
+          buying_price: variant.buying_price || 0,
+          wholesale_price: variant.wholesale_price || 0,
+          stock: variant.stock_qty || 0,
+          variant_id: variant.id
         }
       })
       setProducts(formatted)
@@ -75,9 +82,32 @@ export default function InventoryPage() {
       p.barcode.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleAddProduct = async () => {
+  const handleSaveProduct = async () => {
     if (!newProduct.name || !newProduct.barcode) return
     
+    if (editingProductId) {
+      // 1. Update products
+      await supabase.from('products').update({ name: newProduct.name, category: newProduct.category || "Apparel" }).eq('id', editingProductId)
+      
+      // 2. Update product_variants
+      if (newProduct.variant_id) {
+        await supabase.from('product_variants').update({
+          barcode: newProduct.barcode,
+          mrp: Number(newProduct.price),
+          selling_price: Number(newProduct.price),
+          buying_price: Number(newProduct.buying_price),
+          wholesale_price: Number(newProduct.wholesale_price),
+          stock_qty: Number(newProduct.stock)
+        }).eq('id', newProduct.variant_id)
+      }
+      
+      fetchProducts()
+      setIsDialogOpen(false)
+      setEditingProductId(null)
+      setNewProduct({ name: "", barcode: "", price: 0, buying_price: 0, wholesale_price: 0, stock: 0, category: "Apparel" })
+      return
+    }
+
     // 1. Insert into products
     const { data: prodData, error: prodErr } = await supabase
       .from('products')
@@ -101,6 +131,8 @@ export default function InventoryPage() {
         barcode: newProduct.barcode,
         mrp: Number(newProduct.price),
         selling_price: Number(newProduct.price),
+        buying_price: Number(newProduct.buying_price),
+        wholesale_price: Number(newProduct.wholesale_price),
         stock_qty: Number(newProduct.stock)
       }])
 
@@ -109,7 +141,7 @@ export default function InventoryPage() {
     } else {
       fetchProducts() // Refresh list
       setIsDialogOpen(false)
-      setNewProduct({ name: "", barcode: "", price: 0, stock: 0, category: "Apparel" })
+      setNewProduct({ name: "", barcode: "", price: 0, buying_price: 0, wholesale_price: 0, stock: 0, category: "Apparel" })
     }
   }
 
@@ -128,15 +160,21 @@ export default function InventoryPage() {
           <p className="text-muted-foreground">Manage your products, stock, and barcodes.</p>
         </div>
         {role === "Admin" && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingProductId(null);
+              setNewProduct({ name: "", barcode: "", price: 0, buying_price: 0, wholesale_price: 0, stock: 0, category: "Apparel" });
+            }
+          }}>
             <DialogTrigger render={<Button className="gap-2" />}>
               <Plus className="h-4 w-4" /> Add Product
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
+                <DialogTitle>{editingProductId ? "Edit Product" : "Add New Product"}</DialogTitle>
                 <DialogDescription>
-                  Enter the details of the new product here. Click save when you're done.
+                  Enter the details of the product here. Click save when you're done.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -161,12 +199,32 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="price" className="text-right">Price</Label>
+                  <Label htmlFor="price" className="text-right">Retail Price</Label>
                   <Input
                     id="price"
                     type="number"
-                    value={newProduct.price}
+                    value={Number.isNaN(newProduct.price) ? "" : newProduct.price}
                     onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) })}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="buying_price" className="text-right">Buying Price</Label>
+                  <Input
+                    id="buying_price"
+                    type="number"
+                    value={Number.isNaN(newProduct.buying_price) ? "" : newProduct.buying_price}
+                    onChange={(e) => setNewProduct({ ...newProduct, buying_price: parseFloat(e.target.value) })}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="wholesale_price" className="text-right">Wholesale Price</Label>
+                  <Input
+                    id="wholesale_price"
+                    type="number"
+                    value={Number.isNaN(newProduct.wholesale_price) ? "" : newProduct.wholesale_price}
+                    onChange={(e) => setNewProduct({ ...newProduct, wholesale_price: parseFloat(e.target.value) })}
                     className="col-span-3"
                   />
                 </div>
@@ -175,7 +233,7 @@ export default function InventoryPage() {
                   <Input
                     id="stock"
                     type="number"
-                    value={newProduct.stock}
+                    value={Number.isNaN(newProduct.stock) ? "" : newProduct.stock}
                     onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) })}
                     className="col-span-3"
                   />
@@ -192,7 +250,7 @@ export default function InventoryPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="button" onClick={handleAddProduct}>Save changes</Button>
+                <Button type="button" onClick={handleSaveProduct}>Save changes</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -226,9 +284,11 @@ export default function InventoryPage() {
                 <tr>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Barcode</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
-                  <th className="px-4 py-3 font-medium text-right">Price</th>
-                  <th className="px-4 py-3 font-medium text-right">Stock</th>
+                  <th className="py-3 px-4 font-semibold text-muted-foreground">Category</th>
+                  <th className="py-3 px-4 text-right font-semibold text-muted-foreground">Buying Price</th>
+                  <th className="py-3 px-4 text-right font-semibold text-muted-foreground">Retail Price</th>
+                  <th className="py-3 px-4 text-right font-semibold text-muted-foreground">Wholesale Price</th>
+                  <th className="py-3 px-4 text-center font-semibold text-muted-foreground">Stock</th>
                   {role === "Admin" && <th className="px-4 py-3 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
@@ -237,13 +297,11 @@ export default function InventoryPage() {
                   <tr key={product.id} className="group hover:bg-muted/50 transition-colors">
                     <td className="px-4 py-3 font-medium">{product.name}</td>
                     <td className="px-4 py-3 text-muted-foreground font-mono">{product.barcode}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground">
-                        {product.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">${product.price.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="py-3 px-4">{product.category}</td>
+                    <td className="py-3 px-4 text-right">${product.buying_price?.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right">${product.price.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right">${product.wholesale_price?.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-center">
                       <span className={`font-medium ${product.stock < 10 ? 'text-destructive' : ''}`}>
                         {product.stock}
                       </span>
@@ -251,18 +309,26 @@ export default function InventoryPage() {
                     {role === "Admin" && (
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => handleDelete(product.id)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
+                        setEditingProductId(product.id)
+                        setNewProduct({
+                          name: product.name,
+                          barcode: product.barcode,
+                          price: product.price,
+                          buying_price: product.buying_price,
+                          wholesale_price: product.wholesale_price,
+                          stock: product.stock,
+                          category: product.category,
+                          variant_id: product.variant_id
+                        })
+                        setIsDialogOpen(true)
+                      }}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(product.id)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
                       </td>
                     )}
                   </tr>

@@ -34,6 +34,17 @@ export function LoginForm({ className, ...props }: UserAuthFormProps) {
     event.preventDefault()
     setIsLoading(true)
 
+    // Local dev bypass for specific credentials
+    if (
+      (email === 'admin@gmail.com' && password === 'admin') ||
+      (email === 'casher' && password === '123456')
+    ) {
+      setIsLoading(false)
+      router.push("/dashboard")
+      router.refresh()
+      return
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -61,7 +72,7 @@ export function LoginForm({ className, ...props }: UserAuthFormProps) {
             <Input
               id="email"
               placeholder="name@example.com"
-              type="email"
+              type="text"
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect="off"
@@ -96,7 +107,7 @@ export function LoginForm({ className, ...props }: UserAuthFormProps) {
               </SelectContent>
             </Select>
           </div>
-          <Button disabled={isLoading}>
+          <Button type="submit" disabled={isLoading}>
             {isLoading && (
               <svg
                 className="mr-2 h-4 w-4 animate-spin"

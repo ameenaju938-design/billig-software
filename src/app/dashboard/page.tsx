@@ -200,7 +200,7 @@ export default function DashboardPage() {
                       {style.sold} units sold
                     </p>
                   </div>
-                  <div className="font-medium">₹{style.revenue.toLocaleString()}</div>
+                  <div className="font-medium">₹{style.revenue.toLocaleString('en-IN')}</div>
                 </div>
               ))}
             </div>
