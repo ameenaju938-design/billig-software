@@ -53,7 +53,7 @@ export default function BillingPage() {
       `)
       .eq('invoice_id', invoice.id)
       
-    if (items) {
+      if (items) {
       const loadedCart: CartItem[] = items.map((item: any) => {
         const pv = item.product_variants
         return {
@@ -62,6 +62,8 @@ export default function BillingPage() {
           category: pv.products?.category,
           barcode: pv.barcode,
           price: Number(item.unit_price),
+          buying_price: 0, // Fallback since it's not loaded for historical items
+          wholesale_price: 0, // Fallback
           stock: 999, // Bypass stock check for edits temporarily
           quantity: item.quantity,
           variant_id: pv.id
@@ -88,7 +90,7 @@ export default function BillingPage() {
       .from('products')
       .select(`
         id, name, category,
-        product_variants ( id, barcode, selling_price, stock_qty )
+        product_variants ( id, barcode, selling_price, buying_price, wholesale_price, stock_qty )
       `)
 
     if (data) {
@@ -100,6 +102,8 @@ export default function BillingPage() {
           category: p.category,
           barcode: variant.barcode || '',
           price: variant.selling_price || 0,
+          buying_price: variant.buying_price || 0,
+          wholesale_price: variant.wholesale_price || 0,
           stock: variant.stock_qty || 0,
           variant_id: variant.id
         }
