@@ -135,21 +135,12 @@
     size: auto;
   }
 
-  body * {
-    visibility: hidden;
+  body > :not(.print-section) {
+    display: none !important;
   }
 
-  .print\:block, .print\:block * {
-    visibility: visible;
-  }
-  
-  .print\:block {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
+  .print-section {
+    display: block !important;
   }
 
   .print\:hidden {

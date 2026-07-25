@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Search, Printer, Trash2, Plus, Minus, History, Edit, FileText } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,16 @@ import { Product } from "@/app/dashboard/inventory/page"
 
 interface CartItem extends Product {
   quantity: number;
+}
+
+interface PrintReceiptData {
+  invoiceNumber: string;
+  date: string;
+  customerPhone?: string;
+  items: { name: string; quantity: number; price: number }[];
+  subtotal: number;
+  tax: number;
+  total: number;
 }
 
 export default function BillingPage() {
@@ -26,6 +37,7 @@ export default function BillingPage() {
   const [dailySerial, setDailySerial] = useState<string | null>(null)
   const [invoiceHistory, setInvoiceHistory] = useState<any[]>([])
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [printReceipt, setPrintReceipt] = useState<PrintReceiptData | null>(null)
 
   const fetchInvoiceHistory = async () => {
     const today = new Date()
@@ -75,10 +87,36 @@ export default function BillingPage() {
   }
 
   const loadInvoiceForPrint = async (invoice: any) => {
-    await loadInvoiceForEdit(invoice)
+    const { data: items } = await supabase
+      .from('invoice_items')
+      .select(`
+        quantity, unit_price,
+        product_variants ( id, product_id, barcode, products (name, category) )
+      `)
+      .eq('invoice_id', invoice.id)
+
+    const loadedItems = (items || []).map((item: any) => {
+      const pv = item.product_variants
+      return {
+        name: pv?.products?.name || 'Item',
+        quantity: item.quantity,
+        price: Number(item.unit_price)
+      }
+    })
+
+    setPrintReceipt({
+      invoiceNumber: invoice.invoice_number,
+      date: new Date(invoice.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+      customerPhone: invoice.customers?.phone || 'Walk-in Customer',
+      items: loadedItems,
+      subtotal: Number(invoice.subtotal || 0),
+      tax: Number(invoice.total_gst || 0),
+      total: Number(invoice.grand_total || 0)
+    })
+
     setTimeout(() => {
       window.print()
-    }, 500)
+    }, 300)
   }
 
   useEffect(() => {
@@ -198,6 +236,8 @@ export default function BillingPage() {
       }
     }
 
+    let savedInvoiceNumber = ""
+
     if (currentInvoiceId) {
       // Restore stock for old items before deleting
       const { data: oldItems } = await supabase
@@ -214,12 +254,14 @@ export default function BillingPage() {
       
       await supabase.from('invoice_items').delete().eq('invoice_id', currentInvoiceId)
       
-      await supabase.from('invoices').update({
+      const { data: updatedInv } = await supabase.from('invoices').update({
         customer_id: customerId,
         subtotal: subtotal,
         total_gst: tax,
         grand_total: total
-      }).eq('id', currentInvoiceId)
+      }).eq('id', currentInvoiceId).select('invoice_number').single()
+
+      if (updatedInv) savedInvoiceNumber = updatedInv.invoice_number
 
     } else {
       const today = new Date()
@@ -228,12 +270,12 @@ export default function BillingPage() {
       const serialNum = (count || 0) + 1
       const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
       generatedSerialNumber = serialNum.toString().padStart(3, '0')
-      const invoiceNumber = `INV-${dateStr}-${generatedSerialNumber}`
+      savedInvoiceNumber = `INV-${dateStr}-${generatedSerialNumber}`
       
       const { data: invoiceData, error: invoiceError } = await supabase
         .from('invoices')
         .insert([{
-          invoice_number: invoiceNumber,
+          invoice_number: savedInvoiceNumber,
           customer_id: customerId,
           subtotal: subtotal,
           total_gst: tax,
@@ -287,7 +329,20 @@ export default function BillingPage() {
       }
     }
 
-    window.print()
+    setPrintReceipt({
+      invoiceNumber: savedInvoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+      date: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+      customerPhone: customerPhone || 'Walk-in Customer',
+      items: cart.map(item => ({ name: item.name, quantity: item.quantity, price: item.price })),
+      subtotal: subtotal,
+      tax: tax,
+      total: total
+    })
+
+    setTimeout(() => {
+      window.print()
+    }, 300)
+
     setCart([])
     setCustomerPhone("")
     setEditingInvoiceId(null)
@@ -503,110 +558,114 @@ export default function BillingPage() {
           </CardFooter>
         </Card>
 
-        {/* Print-Only Minimal Tag Layout (2-column 88mm x 25mm) */}
-        <div className="hidden print:block text-black bg-white">
-          <style type="text/css" media="print">
-            {`
-              @page { size: 88mm 25mm; margin: 0; padding: 0; }
-              body * { visibility: hidden !important; }
-              .print-section, .print-section * { visibility: visible !important; }
-              .print-section {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 88mm;
-                margin: 0;
-                padding: 0;
+        {/* POS Bill Receipt Printable Layout (Portaled to document.body) */}
+        {printReceipt && typeof document !== 'undefined' && createPortal(
+          <div className="print-section hidden print:block">
+            <style media="print">{`
+              @media print {
+                @page {
+                  size: auto;
+                  margin: 0mm;
+                }
+                body > :not(.print-section) {
+                  display: none !important;
+                }
+                body {
+                  background: #ffffff !important;
+                  color: #000000 !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .print-section {
+                  display: block !important;
+                  width: 80mm;
+                  max-width: 100%;
+                  margin: 0 auto;
+                  padding: 6mm 4mm;
+                  font-family: 'Courier New', Courier, monospace, sans-serif;
+                  font-size: 12px;
+                  color: #000000;
+                  background: #ffffff;
+                }
+                .print-divider {
+                  border-bottom: 1px dashed #000000;
+                  margin: 8px 0;
+                }
               }
-              .print-row {
-                width: 88mm;
-                height: 25mm;
-                overflow: hidden;
-                display: flex;
-                background: white;
-                page-break-after: always;
-              }
-              .box-sticker {
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
-                padding: 2mm;
-                background-color: white;
-                color: black;
-                font-family: sans-serif;
-                box-sizing: border-box;
-                overflow: hidden;
-                height: 25mm;
-                width: 42mm;
-              }
-            `}
-          </style>
-          
-          <div className="print-section">
-            {cart.flatMap((item) => 
-              Array.from({ length: item.quantity }).map((_, idx) => (
-                <div key={`${item.id}-${idx}`} className="print-row">
-                  {/* Left Label */}
-                  <div className="box-sticker">
-                    <div className="flex justify-between items-start">
-                      <div className="font-bold text-[14px] leading-tight max-w-[65%] uppercase break-words">{item.name || "SULAF"}</div>
-                      <div className="font-bold text-[18px] leading-tight">M</div>
-                    </div>
-                    <div className="flex justify-between mt-[1mm] h-full">
-                      <div className="flex flex-col text-[10px] leading-tight uppercase font-medium">
-                        <div>BLACK</div>
-                        <div>NIDHA</div>
-                        <div className="mt-[1.5mm]">FARASH-BN</div>
-                        <div className="mt-[1.5mm]">EMB</div>
-                      </div>
-                      <div className="flex flex-col items-end justify-between h-full">
-                        <div className="font-bold text-[18px] leading-tight mt-[1mm]">₹{item.price.toFixed(0)}</div>
-                        <div className="flex mt-[2mm] border-[1.5px] border-black h-[5mm]">
-                          {['TW', 'BD', 'HW', 'BT', 'BC'].map((box, i) => (
-                            <div key={i} className={`flex items-center justify-center text-[7px] font-bold px-[2px] ${i < 4 ? 'border-r-[1.5px] border-black' : ''}`}>
-                              {box}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="text-[12px] font-bold mt-[1mm] self-end">{item.barcode || "MD-0001"}</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Gap */}
-                  <div className="w-[4mm] h-[25mm] bg-transparent"></div>
+            `}</style>
 
-                  {/* Right Label (Duplicate) */}
-                  <div className="box-sticker">
-                    <div className="flex justify-between items-start">
-                      <div className="font-bold text-[14px] leading-tight max-w-[65%] uppercase break-words">{item.name || "SULAF"}</div>
-                      <div className="font-bold text-[18px] leading-tight">M</div>
-                    </div>
-                    <div className="flex justify-between mt-[1mm] h-full">
-                      <div className="flex flex-col text-[10px] leading-tight uppercase font-medium">
-                        <div>BLACK</div>
-                        <div>NIDHA</div>
-                        <div className="mt-[1.5mm]">FARASH-BN</div>
-                        <div className="mt-[1.5mm]">EMB</div>
-                      </div>
-                      <div className="flex flex-col items-end justify-between h-full">
-                        <div className="font-bold text-[18px] leading-tight mt-[1mm]">₹{item.price.toFixed(0)}</div>
-                        <div className="flex mt-[2mm] border-[1.5px] border-black h-[5mm]">
-                          {['TW', 'BD', 'HW', 'BT', 'BC'].map((box, i) => (
-                            <div key={i} className={`flex items-center justify-center text-[7px] font-bold px-[2px] ${i < 4 ? 'border-r-[1.5px] border-black' : ''}`}>
-                              {box}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="text-[12px] font-bold mt-[1mm] self-end">{item.barcode || "MD-0001"}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+            <div className="text-center font-bold text-base uppercase tracking-wider">SHOP INVENTORY & POS</div>
+            <div className="text-center text-xs">Retail & Wholesale Fashion Store</div>
+            <div className="text-center text-xs">Tel: +91 9876543210</div>
+
+            <div className="print-divider" />
+
+            <div className="flex justify-between text-xs">
+              <span>Invoice: <strong>{printReceipt.invoiceNumber}</strong></span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span>Date: {printReceipt.date}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span>Customer: {printReceipt.customerPhone}</span>
+            </div>
+
+            <div className="print-divider" />
+
+            {/* Items Table */}
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-black">
+                  <th className="py-1 text-left">ITEM</th>
+                  <th className="py-1 text-center">QTY</th>
+                  <th className="py-1 text-right">PRICE</th>
+                  <th className="py-1 text-right">AMOUNT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printReceipt.items.map((item, idx) => (
+                  <tr key={idx} className="border-b border-gray-200">
+                    <td className="py-1 pr-1 font-medium">{item.name}</td>
+                    <td className="py-1 px-1 text-center">{item.quantity}</td>
+                    <td className="py-1 px-1 text-right">₹{item.price.toFixed(2)}</td>
+                    <td className="py-1 pl-1 text-right font-semibold">₹{(item.quantity * item.price).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="print-divider" />
+
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>₹{printReceipt.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tax (GST 10%):</span>
+                <span>₹{printReceipt.tax.toFixed(2)}</span>
+              </div>
+              <div className="print-divider" />
+              <div className="flex justify-between font-bold text-sm">
+                <span>GRAND TOTAL:</span>
+                <span>₹{printReceipt.total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Payment: Paid (Cash)</span>
+              </div>
+            </div>
+
+            <div className="print-divider" />
+
+            <div className="text-center text-xs mt-3 space-y-1">
+              <p className="font-semibold">Thank you for shopping with us!</p>
+              <p className="text-[10px] text-gray-500">Please Visit Again</p>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </div>
   )
