@@ -54,7 +54,7 @@ export default function BillingPage() {
       .eq('invoice_id', invoice.id)
       
       if (items) {
-      const loadedCart: CartItem[] = items.map((item: any) => {
+      const loadedCart = items.map((item: any) => {
         const pv = item.product_variants
         return {
           id: pv.product_id,
@@ -62,12 +62,12 @@ export default function BillingPage() {
           category: pv.products?.category,
           barcode: pv.barcode,
           price: Number(item.unit_price),
-          buying_price: 0, // Fallback since it's not loaded for historical items
-          wholesale_price: 0, // Fallback
-          stock: 999, // Bypass stock check for edits temporarily
+          buying_price: 0, 
+          wholesale_price: 0, 
+          stock: 999, 
           quantity: item.quantity,
           variant_id: pv.id
-        }
+        } as CartItem
       })
       setCart(loadedCart)
       setIsHistoryOpen(false)
@@ -106,7 +106,7 @@ export default function BillingPage() {
           wholesale_price: variant.wholesale_price || 0,
           stock: variant.stock_qty || 0,
           variant_id: variant.id
-        }
+        } as Product
       })
       setProducts(formatted)
     }
