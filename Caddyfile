@@ -1,0 +1,15 @@
+# Caddyfile
+# This configuration tells Caddy to accept external traffic,
+# automatically provision SSL certificates (if a domain is provided),
+# and route requests to the Next.js container on port 3000.
+
+# Replace with your actual domain when deploying, e.g., shop-inventory.com
+# If you are just testing locally, leaving it as :80 is fine.
+:80 {
+    reverse_proxy web:3000
+}
+
+# Example for production with a domain (Uncomment and replace example.com):
+# example.com {
+#     reverse_proxy web:3000
+# }

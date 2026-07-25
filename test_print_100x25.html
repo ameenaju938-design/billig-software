@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { size: 100.0mm 25.0mm; margin: 0; }
+  body { margin: 0; font-family: Arial, sans-serif; height: 25mm; width: 100mm; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .label { 
+      width: 100mm; 
+      height: 25mm; 
+      padding: 3mm; 
+      box-sizing: border-box; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: space-between; 
+  }
+  .header { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; }
+  .middle { display: flex; justify-content: space-between; font-size: 12px; margin-top: 2px;}
+  .footer { font-size: 16px; font-weight: bold; text-align: center; display: flex; justify-content: space-between; align-items: flex-end; }
+</style>
+</head>
+<body onload="window.print()">
+  <div class="label">
+    <div class="header">
+      <span>AL AIN</span>
+      <span>Size: XL</span>
+    </div>
+    <div class="middle">
+      <div style="display: flex; flex-direction: column;">
+        <span>BLACK</span>
+        <span>NIDHA</span>
+      </div>
+      <div style="display: flex; flex-direction: column; text-align: right;">
+        <span style="font-weight: bold; font-size: 14px;">₹ 1500</span>
+      </div>
+    </div>
+    <div class="footer">
+      <span>AI TEST PRINT</span>
+      <span>SH-0001</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,169 @@
+-- StyleBill Database Schema
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- USERS (Profiles linked to Supabase Auth)
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('Admin', 'Manager', 'Cashier')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- CUSTOMERS
+CREATE TABLE IF NOT EXISTS public.customers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  phone TEXT UNIQUE NOT NULL,
+  email TEXT,
+  address TEXT,
+  loyalty_points INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- SUPPLIERS
+CREATE TABLE IF NOT EXISTS public.suppliers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  contact_person TEXT,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  gstin TEXT,
+  outstanding_dues DECIMAL(12, 2) DEFAULT 0.00,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PRODUCTS (Styles)
+CREATE TABLE IF NOT EXISTS public.products (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT,
+  seasonal_collection TEXT,
+  brand TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PRODUCT VARIANTS (Size, Color, etc.)
+CREATE TABLE IF NOT EXISTS public.product_variants (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+  size TEXT NOT NULL,
+  color TEXT NOT NULL,
+  sku TEXT UNIQUE NOT NULL,
+  barcode TEXT UNIQUE,
+  mrp DECIMAL(10, 2) NOT NULL,
+  selling_price DECIMAL(10, 2) NOT NULL,
+  stock_qty INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(product_id, size, color)
+);
+
+-- INVOICES (Sales)
+CREATE TABLE IF NOT EXISTS public.invoices (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  invoice_number TEXT UNIQUE NOT NULL,
+  customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+  cashier_id UUID REFERENCES public.users(id),
+  subtotal DECIMAL(12, 2) NOT NULL,
+  total_discount DECIMAL(12, 2) DEFAULT 0.00,
+  total_gst DECIMAL(12, 2) DEFAULT 0.00,
+  grand_total DECIMAL(12, 2) NOT NULL,
+  payment_status TEXT CHECK (payment_status IN ('Pending', 'Paid', 'Partially Paid', 'Refunded')),
+  payment_method TEXT CHECK (payment_method IN ('Cash', 'Card', 'UPI', 'Multiple')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- INVOICE ITEMS
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  invoice_id UUID REFERENCES public.invoices(id) ON DELETE CASCADE,
+  variant_id UUID REFERENCES public.product_variants(id),
+  quantity INTEGER NOT NULL,
+  unit_price DECIMAL(10, 2) NOT NULL,
+  discount DECIMAL(10, 2) DEFAULT 0.00,
+  gst_amount DECIMAL(10, 2) DEFAULT 0.00,
+  subtotal DECIMAL(12, 2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- EXPENSES
+CREATE TABLE IF NOT EXISTS public.expenses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date TIMESTAMPTZ DEFAULT NOW(),
+  category TEXT NOT NULL,
+  amount DECIMAL(12, 2) NOT NULL,
+  description TEXT,
+  payment_method TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PURCHASE BILLS
+CREATE TABLE IF NOT EXISTS public.purchase_bills (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  supplier_id UUID REFERENCES public.suppliers(id),
+  invoice_number TEXT NOT NULL,
+  date TIMESTAMPTZ DEFAULT NOW(),
+  taxable_amount DECIMAL(12, 2) NOT NULL,
+  total_gst DECIMAL(12, 2) NOT NULL,
+  grand_total DECIMAL(12, 2) NOT NULL,
+  cash_paid DECIMAL(12, 2) DEFAULT 0.00,
+  balance_due DECIMAL(12, 2) DEFAULT 0.00,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PURCHASE ITEMS
+CREATE TABLE IF NOT EXISTS public.purchase_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  bill_id UUID REFERENCES public.purchase_bills(id) ON DELETE CASCADE,
+  item_name TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  rate DECIMAL(10, 2) NOT NULL,
+  gst_percentage DECIMAL(5, 2) DEFAULT 18.00,
+  gst_amount DECIMAL(10, 2) NOT NULL,
+  subtotal DECIMAL(12, 2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Set up Row Level Security (RLS) basics (optional depending on use case, disabled here for simpler setup unless needed)
+-- For a local POS system, RLS can often just require authentication.
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_bills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to do everything (Simplified for this internal tool)
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.users;
+CREATE POLICY "Allow authenticated users full access" ON public.users FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.customers;
+CREATE POLICY "Allow authenticated users full access" ON public.customers FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.products;
+CREATE POLICY "Allow authenticated users full access" ON public.products FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.product_variants;
+CREATE POLICY "Allow authenticated users full access" ON public.product_variants FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.invoices;
+CREATE POLICY "Allow authenticated users full access" ON public.invoices FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.invoice_items;
+CREATE POLICY "Allow authenticated users full access" ON public.invoice_items FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.expenses;
+CREATE POLICY "Allow authenticated users full access" ON public.expenses FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.purchase_bills;
+CREATE POLICY "Allow authenticated users full access" ON public.purchase_bills FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.purchase_items;
+CREATE POLICY "Allow authenticated users full access" ON public.purchase_items FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.suppliers;
+CREATE POLICY "Allow authenticated users full access" ON public.suppliers FOR ALL TO authenticated USING (true);

@@ -1,0 +1,13 @@
+echo Starting Abaya Store Local Setup...
+
+echo Starting PostgreSQL Container...
+docker compose up -d
+
+echo Starting Backend...
+start cmd /k "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 10000"
+
+echo Starting Frontend...
+start cmd /k "cd frontend && npm start"
+
+echo Setup complete. Close this window if you wish, but the opened windows must remain open.
+pause

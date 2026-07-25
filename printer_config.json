@@ -1,0 +1,56 @@
+{
+  "activeProfile": "58mm_thermal",
+  "storeInfo": {
+    "name": "AL AIN BOUTIQUE",
+    "address": "Main Street, City Center",
+    "phone": "+91 9876543210",
+    "taxId": "GSTIN123456789",
+    "footerMessage": "Thank you for shopping with us!"
+  },
+  "profiles": {
+    "58mm_thermal": {
+      "name": "58mm Thermal Microprinter (POS Receipt)",
+      "type": "receipt",
+      "widthMm": 58,
+      "paddingMm": 2,
+      "fontSizePx": 11,
+      "fontFamily": "Courier New, monospace",
+      "dpi": 203,
+      "cutPaper": true,
+      "openCashDrawer": false
+    },
+    "80mm_thermal": {
+      "name": "80mm Thermal Receipt Printer",
+      "type": "receipt",
+      "widthMm": 80,
+      "paddingMm": 4,
+      "fontSizePx": 12,
+      "fontFamily": "Arial, sans-serif",
+      "dpi": 203,
+      "cutPaper": true,
+      "openCashDrawer": true
+    },
+    "label_100x25": {
+      "name": "100mm x 25mm Thermal Sticker Label",
+      "type": "label",
+      "widthMm": 100,
+      "heightMm": 25,
+      "paddingMm": 2,
+      "fontSizePx": 12,
+      "fontFamily": "Arial, sans-serif",
+      "columns": 2,
+      "cutPaper": false
+    },
+    "label_50x25": {
+      "name": "50mm x 25mm Single Barcode Tag",
+      "type": "label",
+      "widthMm": 50,
+      "heightMm": 25,
+      "paddingMm": 2,
+      "fontSizePx": 11,
+      "fontFamily": "Arial, sans-serif",
+      "columns": 1,
+      "cutPaper": false
+    }
+  }
+}
