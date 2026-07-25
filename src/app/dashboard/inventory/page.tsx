@@ -244,7 +244,7 @@ export default function InventoryPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Product Type *</Label>
-                    <Select value={newProduct.category || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, category: v })}>
+                    <Select value={newProduct.category || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, category: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
                       <SelectContent>{productTypes.map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}</SelectContent>
                     </Select>
@@ -255,14 +255,14 @@ export default function InventoryPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Embellishment</Label>
-                    <Select value={newProduct.embellishment || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, embellishment: v })}>
+                    <Select value={newProduct.embellishment || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, embellishment: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                       <SelectContent>{embellishments.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Color *</Label>
-                    <Select value={newProduct.color || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, color: v })}>
+                    <Select value={newProduct.color || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, color: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="Select Color" /></SelectTrigger>
                       <SelectContent>{colors.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
@@ -281,35 +281,35 @@ export default function InventoryPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Ledger (Brand/Source) *</Label>
-                    <Select value={newProduct.brand || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, brand: v })}>
+                    <Select value={newProduct.brand || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, brand: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="Select Ledger" /></SelectTrigger>
                       <SelectContent>{ledgers.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Model *</Label>
-                    <Select value={newProduct.model || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, model: v })}>
+                    <Select value={newProduct.model || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, model: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="Select Model" /></SelectTrigger>
                       <SelectContent>{models.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Work Type</Label>
-                    <Select value={newProduct.work_type || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, work_type: v })}>
+                    <Select value={newProduct.work_type || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, work_type: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                       <SelectContent>{workTypes.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Fabric *</Label>
-                    <Select value={newProduct.fabric || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, fabric: v })}>
+                    <Select value={newProduct.fabric || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, fabric: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="Select Fabric" /></SelectTrigger>
                       <SelectContent>{fabrics.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Size *</Label>
-                    <Select value={newProduct.size || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, size: v })}>
+                    <Select value={newProduct.size || undefined} onValueChange={(v) => setNewProduct({ ...newProduct, size: v || "" })}>
                       <SelectTrigger><SelectValue placeholder="Select Size" /></SelectTrigger>
                       <SelectContent>{sizes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                     </Select>
